@@ -33,12 +33,6 @@ from app.config import config_dict
 # Get configuration from environment or use default
 config_name = os.environ.get('FLASK_ENV', 'production').lower()
 config_class = config_dict.get(config_name, config_dict['production'])
-if config_name == 'production':
-    secret = os.environ.get('SECRET_KEY', '')
-    if len(secret) < 32 or secret == 'dev-secret-key-change-in-production':
-        raise RuntimeError('Production SECRET_KEY must be a strong secret of at least 32 characters')
-    if not os.environ.get('ADMIN_USERNAME') or not os.environ.get('ADMIN_PASSWORD'):
-        raise RuntimeError('ADMIN_USERNAME and ADMIN_PASSWORD are required for private deployment')
 app = create_app(config_class)
 
 # Optionally ensure database tables exist (disabled by default in production)

@@ -26,3 +26,13 @@ pip-audit 간이 검사 실패: email-validator>=2.0.0이 정확한 버전 고�
 gitleaks 미설치: 전체 Git 이력 비밀 스캔 미실행. 비밀 없음 판정 불가.
 Docker CLI 없음: 빌드/non-root 런타임 검증 미실행.
 GitHub 공개 clone 성공, 쓰기 권한 미확인(gh 미설치). Fly 로그인 확인, 조직/비용 미확인.
+
+## 2026-11-14 보안 수정 1차
+- Python 3.11.16 .venv에 운영 의존성과 pytest/fakeredis/pytest-mock/pip-audit 설치 완료.
+- 개발 SECRET_KEY fallback 제거. 모든 운영 factory 진입점에서 키/관리자 설정 검사. run.py 문자열 분기에 의존하던 검증 제거.
+- /subscribe/stripe, /webhook/stripe 차단 추가. 기존 결제/문의 경로 포함 인증 후에도 404 검증.
+- 세션 Secure/HttpOnly/SameSite=Lax 기본값. UTF-8 Basic Auth 입력의 compare_digest TypeError 방지.
+- 새 tests/test_private_security.py: 24 passed, 2 warnings (37.03s).
+- pip-audit 설치 환경 검사 완료: 8개 패키지에 취약점 보고 156건. docs/pip-audit.json 참조. 기존 간이 검사 실패를 대체하는 실제 검사 결과이며 통과가 아님.
+- 취약 패키지: aiohttp, Authlib, Flask, gunicorn, PyJWT, python-dotenv, requests, urllib3. 의존성 업그레이드/호환성 검증 미완료.
+- 아직 미완료: 관리자 세션/해시/로그인 제한/전역 CSRF, 외부 전송 전체 차단, Git 이력 비밀 스캔, 전체 테스트 통과, 배포.

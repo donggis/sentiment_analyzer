@@ -34,6 +34,13 @@ def create_app(config_class=Config):
     """Application factory pattern for Flask app creation."""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    # Validate every production entry point, including direct factory calls.
+    if not app.testing and not app.debug:
+        secret = app.config.get('SECRET_KEY')
+        if not isinstance(secret, str) or len(secret) < 32 or secret == 'dev-secret-key-change-in-production':
+            raise RuntimeError('Production SECRET_KEY must be a strong secret of at least 32 characters')
+        if not os.environ.get('ADMIN_USERNAME') or not os.environ.get('ADMIN_PASSWORD'):
+            raise RuntimeError('Admin authentication must be configured')
 
     # On Railway, disable strict server name matching to allow healthchecks from
     # healthcheck.railway.app and other internal hosts
@@ -60,7 +67,8 @@ def create_app(config_class=Config):
             return None
         # Disable legacy billing and contact endpoints in private mode.
         if request.path.startswith('/auth/subscribe') or request.path in (
-            '/auth/create-checkout-session', '/auth/stripe/webhook', '/contact'
+            '/auth/create-checkout-session', '/auth/stripe/webhook', '/contact',
+            '/subscribe/stripe', '/webhook/stripe'
         ):
             return Response('Feature disabled for private deployment', status=404)
         expected_user = os.environ.get('ADMIN_USERNAME', '')
@@ -69,8 +77,8 @@ def create_app(config_class=Config):
             return Response('Admin authentication not configured', status=503)
         auth = request.authorization
         if not auth or not (
-            hmac.compare_digest(auth.username or '', expected_user)
-            and hmac.compare_digest(auth.password or '', expected_pass)
+            hmac.compare_digest((auth.username or '').encode('utf-8'), expected_user.encode('utf-8'))
+            and hmac.compare_digest((auth.password or '').encode('utf-8'), expected_pass.encode('utf-8'))
         ):
             return Response(
                 'Administrator authentication required',

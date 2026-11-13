@@ -11,7 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(basedir), '.env'))
 
 class Config:
     """Base configuration class."""
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
     YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY')
     
     # External sentiment analysis API
@@ -21,6 +21,9 @@ class Config:
     # Flask settings
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     TESTING = False
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     # Server configuration for URL generation in emails
     SERVER_NAME = os.environ.get('SERVER_NAME')
