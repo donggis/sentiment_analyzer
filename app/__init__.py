@@ -5,8 +5,9 @@ Modified to preload ML models at startup for better performance on Railway
 import os
 import logging
 import threading
+import hmac
 from datetime import datetime
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -51,6 +52,27 @@ def create_app(config_class=Config):
         CORS(app, origins=['http://localhost:3000', 'http://localhost:3002'])
     else:
         CORS(app, origins=['https://web-production-6a064.up.railway.app'])
+
+    # Fail-closed HTTP Basic authentication for private deployments.
+    @app.before_request
+    def require_private_admin():
+        if request.path == '/healthz':
+            return None
+        expected_user = os.environ.get('ADMIN_USERNAME', '')
+        expected_pass = os.environ.get('ADMIN_PASSWORD', '')
+        if not expected_user or not expected_pass:
+            return Response('Admin authentication not configured', status=503)
+        auth = request.authorization
+        if not auth or not (
+            hmac.compare_digest(auth.username or '', expected_user)
+            and hmac.compare_digest(auth.password or '', expected_pass)
+        ):
+            return Response(
+                'Administrator authentication required',
+                status=401,
+                headers={'WWW-Authenticate': 'Basic realm="Private Admin"'}
+            )
+        return None
 
     # Initialize extensions with app
     db.init_app(app)
@@ -112,7 +134,7 @@ def create_app(config_class=Config):
         
         # Check sentiment API status
         health_status['sentiment_api'] = 'external'
-        health_status['sentiment_api_url'] = os.environ.get('SENTIMENT_API_URL', 'not configured')
+
         
         # Always return 200 OK for basic health
         return jsonify(health_status), 200
@@ -127,7 +149,7 @@ def create_app(config_class=Config):
     def api_stats():
         """Get API statistics."""
         return {
-            'sentiment_api': os.environ.get('SENTIMENT_API_URL', 'not configured'),
+            'sentiment_api': 'external',
             'api_timeout': app.config.get('API_TIMEOUT', 30)
         }, 200
 
