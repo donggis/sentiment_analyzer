@@ -58,6 +58,11 @@ def create_app(config_class=Config):
     def require_private_admin():
         if request.path == '/healthz':
             return None
+        # Disable legacy billing and contact endpoints in private mode.
+        if request.path.startswith('/auth/subscribe') or request.path in (
+            '/auth/create-checkout-session', '/auth/stripe/webhook', '/contact'
+        ):
+            return Response('Feature disabled for private deployment', status=404)
         expected_user = os.environ.get('ADMIN_USERNAME', '')
         expected_pass = os.environ.get('ADMIN_PASSWORD', '')
         if not expected_user or not expected_pass:
@@ -73,6 +78,14 @@ def create_app(config_class=Config):
                 headers={'WWW-Authenticate': 'Basic realm="Private Admin"'}
             )
         return None
+
+    @app.after_request
+    def private_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers['Cache-Control'] = 'no-store'
+        return response
 
     # Initialize extensions with app
     db.init_app(app)
