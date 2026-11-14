@@ -36,3 +36,9 @@ GitHub 공개 clone 성공, 쓰기 권한 미확인(gh 미설치). Fly 로그인
 - pip-audit 설치 환경 검사 완료: 8개 패키지에 취약점 보고 156건. docs/pip-audit.json 참조. 기존 간이 검사 실패를 대체하는 실제 검사 결과이며 통과가 아님.
 - 취약 패키지: aiohttp, Authlib, Flask, gunicorn, PyJWT, python-dotenv, requests, urllib3. 의존성 업그레이드/호환성 검증 미완료.
 - 아직 미완료: 관리자 세션/해시/로그인 제한/전역 CSRF, 외부 전송 전체 차단, Git 이력 비밀 스캔, 전체 테스트 통과, 배포.
+
+## 2026-11-14 배포 준비 중 의존성 수정
+운영 requirements의 Flask/aiohttp/Authlib/gunicorn/PyJWT/python-dotenv/requests/urllib3 및 google-auth 버전을 업그레이드했다.
+설치 환경 pip-audit 재검사: No known vulnerabilities found (docs/pip-audit-upgraded.json). uv pip check: 102 packages, compatible.
+이 결과는 소스 취약점, 컨테이너 OS, 라이선스, 실제 배포 안전성 검증을 대체하지 않는다.
+Fly 기존 앱 sentiment-analyzer-ywuuhq: 머신/볼륨/Secrets 없음. 리소스 생성/배포 미실행.

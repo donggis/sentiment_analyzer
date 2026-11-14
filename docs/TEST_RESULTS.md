@@ -17,3 +17,12 @@
 .venv/Scripts/python.exe -m pytest tests/test_private_security.py -q: 24 passed, 2 warnings, 37.03s.
 .venv/Scripts/python.exe -m pip_audit --format json --output docs/pip-audit.json: exit 1, 156 vulnerability reports / 8 packages. 수정 전 운영 의존성 기준.
 전체 수집 결과는 docs/pytest-collection.txt 참고. 이 명령은 테스트 실행이 아님.
+
+## 업그레이드 후 검증
+- pip-audit: 알려진 취약점 0건 (설치 환경 기준).
+- uv pip check: 통과.
+- 보안 회귀: 24 passed, 2 warnings, 43.52s.
+- 전체 수집: 234 tests collected, 25.85s. 이전 5개 수집 오류 해결(테스트 실행 성공 의미 아님).
+- 외부 네트워크 차단 실행: pytest --ignore=tests/e2e -m "not integration and not youtube and not redis" --disable-socket -q --maxfail=10
+- 결과: 10 failed, 20 passed, 3 deselected, 109.50s. 10개 실패에서 중단하여 나머지 미실행. 기존 SaaS 인증 테스트는 관리자 설정 부재로 503을 받아 실패. 테스트를 통과시키기 위해 앱 인증을 우회하지 않음.
+- Fly 배포 미실행. docs/DEPLOYMENT.md 참고.
