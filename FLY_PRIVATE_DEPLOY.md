@@ -1,13 +1,5 @@
-# Private Fly.io deployment (not yet validated)
-This branch is a security-hardening work in progress. Do not deploy until dependency audit, endpoint authorization review, and smoke tests pass.
+# 비공개 Fly 배포
 
-1. Review the full repository for secrets and license constraints.
-2. Run `pip-audit -r requirements-production.txt` and fix reported vulnerabilities.
-3. Review routes for background jobs, billing, OAuth, CSRF, and request limits.
-4. Configure Fly.io account and billing. Use a unique app name in fly.toml.
-5. Generate random secrets locally. Do not commit them.
-6. Set `SECRET_KEY` (32+ random characters), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `YOUTUBE_API_KEY`, and a persistent `DATABASE_URL` using `fly secrets set`.
-7. Deploy with `fly deploy`, only after the checks pass.
-8. Test unauthenticated 401, authenticated access, API behavior, and persistence.
+배포 절차, 시크릿 이름, 비용, 백업, 롤백은 `docs/DEPLOYMENT.md`에 있습니다.
 
-HTTP Basic Auth is a temporary administrator gate, not MFA or a full security review. Do not expose private content without HTTPS. The /healthz endpoint is deliberately public and contains no sensitive details. SQLite in an ephemeral container is not suitable for durable data.
+Basic Auth는 더 이상 쓰지 않습니다. 관리자 해시 비밀번호와 서버 세션을 사용합니다. 비용을 승인하기 전에는 머신을 만들거나 배포하지 않습니다.

@@ -5,18 +5,19 @@ Modified to preload ML models at startup for better performance on Railway
 import os
 import logging
 import threading
-import hmac
 from datetime import datetime
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 from app.config import Config
 
 # Initialize extensions (without app)
 db = SQLAlchemy()
 migrate = Migrate()
+csrf = CSRFProtect()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'info'
@@ -34,6 +35,14 @@ def create_app(config_class=Config):
     """Application factory pattern for Flask app creation."""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    # Validate every production entry point, including direct factory calls.
+    if not app.testing and not app.debug:
+        secret = app.config.get('SECRET_KEY')
+        if not isinstance(secret, str) or len(secret) < 32 or secret == 'dev-secret-key-change-in-production':
+            raise RuntimeError('Production SECRET_KEY must be a strong secret of at least 32 characters')
+        from app.admin_auth import admin_configured
+        if not admin_configured():
+            raise RuntimeError('Admin authentication must be configured with ADMIN_USERNAME and ADMIN_PASSWORD_HASH')
 
     # On Railway, disable strict server name matching to allow healthchecks from
     # healthcheck.railway.app and other internal hosts
@@ -51,33 +60,12 @@ def create_app(config_class=Config):
     if app.config.get('DEBUG', False):
         CORS(app, origins=['http://localhost:3000', 'http://localhost:3002'])
     else:
-        CORS(app, origins=['https://web-production-6a064.up.railway.app'])
+        origin = os.environ.get('ALLOWED_ORIGIN')
+        CORS(app, origins=[origin] if origin else [])
 
-    # Fail-closed HTTP Basic authentication for private deployments.
-    @app.before_request
-    def require_private_admin():
-        if request.path == '/healthz':
-            return None
-        # Disable legacy billing and contact endpoints in private mode.
-        if request.path.startswith('/auth/subscribe') or request.path in (
-            '/auth/create-checkout-session', '/auth/stripe/webhook', '/contact'
-        ):
-            return Response('Feature disabled for private deployment', status=404)
-        expected_user = os.environ.get('ADMIN_USERNAME', '')
-        expected_pass = os.environ.get('ADMIN_PASSWORD', '')
-        if not expected_user or not expected_pass:
-            return Response('Admin authentication not configured', status=503)
-        auth = request.authorization
-        if not auth or not (
-            hmac.compare_digest(auth.username or '', expected_user)
-            and hmac.compare_digest(auth.password or '', expected_pass)
-        ):
-            return Response(
-                'Administrator authentication required',
-                status=401,
-                headers={'WWW-Authenticate': 'Basic realm="Private Admin"'}
-            )
-        return None
+    from app.admin_auth import install_admin_gate
+    install_admin_gate(app)
+    csrf.init_app(app)
 
     @app.after_request
     def private_security_headers(response):
@@ -109,6 +97,9 @@ def create_app(config_class=Config):
     
     from app.main.channel_routes import bp as channel_bp
     app.register_blueprint(channel_bp)
+
+    from app.admin.routes import bp as admin_bp
+    app.register_blueprint(admin_bp)
 
     # Import models for migrations
     with app.app_context():

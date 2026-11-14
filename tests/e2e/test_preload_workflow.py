@@ -5,6 +5,8 @@ Tests the complete user journey from clicking preload to completion.
 
 import pytest
 import asyncio
+pytest.importorskip('pytest_asyncio')
+pytest.importorskip('playwright.async_api')
 import pytest_asyncio
 
 # Skip these tests if playwright is not installed

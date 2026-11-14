@@ -1,0 +1,100 @@
+C:\Users\webdh\.t3\scratch\2026-11-13-t3-agent-master-prompt-md-fbaa5906\sentiment_analyzer\.venv\Lib\site-packages\pytest_asyncio\plugin.py:306: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session". Set it to "fixture-scope" to keep the current behavior.
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts =============================
+platform win32 -- Python 3.11.16, pytest-9.2.0, pluggy-1.7.0
+rootdir: C:\Users\webdh\.t3\scratch\2026-11-13-t3-agent-master-prompt-md-fbaa5906\sentiment_analyzer
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.16.0, platformdirs-4.14.5, asyncio-1.5.0, mock-3.17.0, socket-0.8.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 177 items / 3 deselected / 174 selected
+
+tests\test_analysis_jobs.py ................                             [  9%]
+tests\test_auth.py ....FFFFFFFFFF
+
+================================== FAILURES ===================================
+________________________ TestAuthRoutes.test_login_get ________________________
+tests\test_auth.py:108: in test_login_get
+    assert response.status_code == 302  # Redirect to Google OAuth
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   assert 503 == 302
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+___________________ TestAuthRoutes.test_login_post_success ____________________
+tests\test_auth.py:120: in test_login_post_success
+    assert response.status_code in [302, 405]  # Redirect or Method Not Allowed
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   assert 503 in [302, 405]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+_____________ TestAuthRoutes.test_login_post_invalid_credentials ______________
+tests\test_auth.py:130: in test_login_post_invalid_credentials
+    assert response.status_code in [302, 405]
+E   assert 503 in [302, 405]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+_______________ TestAuthRoutes.test_login_post_nonexistent_user _______________
+tests\test_auth.py:140: in test_login_post_nonexistent_user
+    assert response.status_code in [302, 405]
+E   assert 503 in [302, 405]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+_________________________ TestAuthRoutes.test_logout __________________________
+tests\test_auth.py:145: in test_logout
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+______________________ TestAuthRoutes.test_register_get _______________________
+tests\test_auth.py:155: in test_register_get
+    assert response.status_code == 404 or response.status_code == 302
+E   assert (503 == 404 or 503 == 302)
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+E    +  and   503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+__________________ TestAuthRoutes.test_register_post_success __________________
+tests\test_auth.py:167: in test_register_post_success
+    assert response.status_code in [404, 302, 405]
+E   assert 503 in [404, 302, 405]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+______________ TestAuthRoutes.test_register_post_duplicate_email ______________
+tests\test_auth.py:183: in test_register_post_duplicate_email
+    assert response.status_code in [404, 302, 405]
+E   assert 503 in [404, 302, 405]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+_______________ TestAuthRoutes.test_reset_password_request_get ________________
+tests\test_auth.py:189: in test_reset_password_request_get
+    assert response.status_code in [404, 302]
+E   assert 503 in [404, 302]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+_______________ TestAuthRoutes.test_reset_password_request_post _______________
+tests\test_auth.py:201: in test_reset_password_request_post
+    assert response.status_code in [404, 302]
+E   assert 503 in [404, 302]
+E    +  where 503 = <WrapperTestResponse streamed [503 SERVICE UNAVAILABLE]>.status_code
+============================== warnings summary ===============================
+.venv\Lib\site-packages\stripe\app_info.py:5
+  C:\Users\webdh\.t3\scratch\2026-11-13-t3-agent-master-prompt-md-fbaa5906\sentiment_analyzer\.venv\Lib\site-packages\stripe\app_info.py:5: DeprecationWarning: 
+      The stripe.app_info package is deprecated, please change your
+      imports to import from stripe directly.
+      From:
+        from stripe.app_info import AppInfo
+      To:
+        from stripe import AppInfo
+      
+    warn(
+
+.venv\Lib\site-packages\google\api_core\_python_version_support.py:273
+  C:\Users\webdh\.t3\scratch\2026-11-13-t3-agent-master-prompt-md-fbaa5906\sentiment_analyzer\.venv\Lib\site-packages\google\api_core\_python_version_support.py:273: FutureWarning: You are using a Python version (3.11.16) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.api_core past that date.
+    warnings.warn(message, FutureWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_auth.py::TestAuthRoutes::test_login_get - assert 503 == 302
+FAILED tests/test_auth.py::TestAuthRoutes::test_login_post_success - assert 5...
+FAILED tests/test_auth.py::TestAuthRoutes::test_login_post_invalid_credentials
+FAILED tests/test_auth.py::TestAuthRoutes::test_login_post_nonexistent_user
+FAILED tests/test_auth.py::TestAuthRoutes::test_logout - assert 503 == 200
+FAILED tests/test_auth.py::TestAuthRoutes::test_register_get - assert (503 ==...
+FAILED tests/test_auth.py::TestAuthRoutes::test_register_post_success - asser...
+FAILED tests/test_auth.py::TestAuthRoutes::test_register_post_duplicate_email
+FAILED tests/test_auth.py::TestAuthRoutes::test_reset_password_request_get - ...
+FAILED tests/test_auth.py::TestAuthRoutes::test_reset_password_request_post
+!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 10 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+===== 10 failed, 20 passed, 3 deselected, 2 warnings in 109.50s (0:01:49) =====

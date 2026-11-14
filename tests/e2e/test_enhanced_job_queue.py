@@ -6,6 +6,7 @@ Tests the complete workflow of displaying jobs with titles and metadata across a
 import pytest
 import json
 import time
+pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import Page, expect
 from unittest.mock import patch, MagicMock
 

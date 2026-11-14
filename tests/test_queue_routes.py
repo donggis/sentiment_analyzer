@@ -174,18 +174,17 @@ class TestJobStatusRoute:
             db.session.add(other_user)
             db.session.commit()
             job_id = job.job_id
-        
-        # Login as other user
-        client.post('/auth/login', data={
-            'email': 'other@test.com',
-            'password': 'password123'
-        }, follow_redirects=True)
-        
+            other_id = other_user.id
+
+        from conftest import login_admin
+        login_admin(client)
+        with client.session_transaction() as sess:
+            sess['_user_id'] = str(other_id)
+            sess['_fresh'] = True
+
         response = client.get(f'/api/analyze/job/{job_id}')
-        
-        # Should either redirect (302) to login or return 404 (job not found for this user)
-        # 302 is acceptable as it means login is required
-        assert response.status_code in [302, 403, 404]
+        assert response.status_code == 404
+        assert response.get_json()['success'] is False
 
 
 class TestJobResultsRoute:

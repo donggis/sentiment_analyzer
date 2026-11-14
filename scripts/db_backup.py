@@ -22,13 +22,12 @@ class DatabaseBackup:
     def __init__(self):
         self.app = create_app()
         self.db_url = self.app.config.get('SQLALCHEMY_DATABASE_URI')
-        self.backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
-        
-        # Ensure backup directory exists
-        os.makedirs(self.backup_dir, exist_ok=True)
-        
-        # Parse database URL
         self.db_type = self._get_db_type()
+        if self.db_type == 'sqlite' and '/data/' in (self.db_url or ''):
+            self.backup_dir = '/data/backups'
+        else:
+            self.backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        os.makedirs(self.backup_dir, exist_ok=True)
         
     def _get_db_type(self):
         """Determine database type from URL."""

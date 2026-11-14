@@ -133,7 +133,10 @@ class TestAPIEndpoints:
     """Test API endpoints."""
     
     def test_api_health_check(self, client):
-        """Test API health check endpoint."""
+        """Health details stay behind the admin session. The public check is /healthz."""
+        assert client.get('/api/health').status_code == 401
+        from conftest import login_admin
+        login_admin(client)
         response = client.get('/api/health')
         assert response.status_code == 200
         data = json.loads(response.data)
@@ -255,7 +258,12 @@ class TestErrorHandling:
     """Test error handling in routes."""
     
     def test_404_error(self, client):
-        """Test 404 error handling."""
+        """Unknown pages are hidden until the admin signs in, then return 404."""
+        hidden = client.get('/nonexistent_page')
+        assert hidden.status_code == 302
+        assert '/login' in hidden.location
+        from conftest import login_admin
+        login_admin(client)
         response = client.get('/nonexistent_page')
         assert response.status_code == 404
     
@@ -284,31 +292,19 @@ class TestErrorHandling:
 
 
 class TestSubscriptionRoutes:
-    """Test subscription-related routes."""
-    
+    """Billing stays off for the private admin deployment."""
+
     @patch('stripe.checkout.Session.create')
     def test_subscribe_stripe(self, mock_stripe, authenticated_client):
-        """Test Stripe subscription flow."""
-        mock_stripe.return_value = MagicMock(url='https://checkout.stripe.com/test')
-        
-        response = authenticated_client.post('/subscribe/stripe',
-            follow_redirects=False
-        )
-        
-        assert response.status_code == 302
-        assert 'stripe.com' in response.location
-    
+        response = authenticated_client.post('/subscribe/stripe', follow_redirects=False)
+        assert response.status_code == 404
+        mock_stripe.assert_not_called()
+
     @patch('stripe.Webhook.construct_event')
     def test_stripe_webhook(self, mock_webhook, client):
-        """Test Stripe webhook handling."""
-        mock_webhook.return_value = {
-            'type': 'checkout.session.completed',
-            'data': {'object': {'customer': 'cus_test'}}
-        }
-        
         response = client.post('/webhook/stripe',
             data='test_payload',
             headers={'Stripe-Signature': 'test_sig'}
         )
-        
-        assert response.status_code in [200, 400]
+        assert response.status_code == 404
+        mock_webhook.assert_not_called()

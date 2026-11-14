@@ -6,7 +6,12 @@ from flask_mail import Mail, Message
 from threading import Thread
 import logging
 
-mail = Mail()
+class DisabledMail(Mail):
+    """Private deployments never send legacy application email."""
+    def send(self, message):
+        raise RuntimeError('Outbound email is disabled for private deployment')
+
+mail = DisabledMail()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
