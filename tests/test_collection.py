@@ -278,3 +278,79 @@ def test_sqlite_survives_new_process(tmp_path, monkeypatch):
 def test_grant_migration_not_in_tree():
     root = Path(__file__).resolve().parents[1] / 'migrations'
     assert 'theresasumma@gmail.com' not in '\n'.join(path.read_text(encoding='utf-8') for path in root.rglob('*.py'))
+
+
+def test_live_lease_is_not_stolen(app):
+    from datetime import timedelta
+    from app.models import _utcnow
+    with app.app_context():
+        job = _new_job()
+        job.lease_owner = 'busy'
+        job.lease_until = _utcnow() + timedelta(minutes=2)
+        db.session.commit()
+        api = FakeYouTube()
+        seen = run_collection(job.id, api, max_steps=1)
+        assert seen.phase == 'channel'
+        assert seen.lease_owner == 'busy'
+        assert api.calls == []
+
+
+def test_expired_lease_can_be_taken(app):
+    from datetime import timedelta
+    from app.models import _utcnow
+    with app.app_context():
+        job = _new_job()
+        job.lease_owner = 'old'
+        job.lease_until = _utcnow() - timedelta(seconds=5)
+        db.session.commit()
+        api = FakeYouTube()
+        seen = run_collection(job.id, api, max_steps=1)
+        assert seen.phase == 'videos'
+        assert seen.lease_owner is None
+        assert api.calls == ['channel']
+
+
+def test_new_collection_refreshes_existing_videos(app):
+    api = FakeYouTube()
+    with app.app_context():
+        _finish(api, _new_job())
+        stale = CollectedComment.query.filter_by(yt_comment_id='c1').one()
+        stale.text = 'stale text'
+        db.session.commit()
+        calls_before = len(api.calls)
+        _finish(api, _new_job())
+        assert len(api.calls) > calls_before
+        refreshed = CollectedComment.query.filter_by(yt_comment_id='c1').one()
+        assert refreshed.text == '배송 느려요'
+        assert CollectedComment.query.count() == 7
+
+
+def test_csv_stream_works_after_request_context_closes(app):
+    from flask import has_app_context
+    from flask.globals import _cv_app
+    from app.admin.routes import _csv_response
+    from app.models import Channel, Video
+    with app.app_context():
+        channel = Channel(yt_channel_id='UCstream', title='stream')
+        db.session.add(channel)
+        db.session.flush()
+        video = Video(yt_video_id='vstream', channel_id=channel.id, title='stream')
+        db.session.add(video)
+        db.session.flush()
+        db.session.add(CollectedComment(yt_comment_id='c-stream', video_id=video.id, text='keep me'))
+        db.session.commit()
+        request_context = app.test_request_context('/export/comments.csv')
+        request_context.push()
+        response = _csv_response()
+        request_context.pop()
+    saved = []
+    while has_app_context():
+        saved.append(_cv_app.get())
+        _cv_app.get().pop()
+    try:
+        text = response.get_data(as_text=True)
+    finally:
+        for item in reversed(saved):
+            item.push()
+    assert 'c-stream' in text
+    assert 'keep me' in text

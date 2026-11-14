@@ -3,6 +3,8 @@ import re
 import secrets
 from datetime import timedelta
 
+from sqlalchemy import or_, update
+
 from app import db
 from app.models import Channel, CollectedComment, CollectionJob, Video, _utcnow
 from app.services.clustering import cluster_channel
@@ -38,16 +40,39 @@ def clean_text(value):
     return re.sub(r'\s+', ' ', TAG_RE.sub(' ', value or '')).strip()
 
 
-def _lock(job, owner):
+def _acquire_lease(job_id, owner):
+    """Take the job only if no other runner holds an unexpired lease."""
     now = _utcnow()
-    if job.lease_until and job.lease_until > now and job.lease_owner and job.lease_owner != owner:
-        return False
-    job.lease_owner = owner
-    job.lease_until = now + timedelta(seconds=120)
-    job.status = 'running'
-    job.error_message = None
+    result = db.session.execute(
+        update(CollectionJob)
+        .where(CollectionJob.id == job_id)
+        .where(or_(
+            CollectionJob.lease_until.is_(None),
+            CollectionJob.lease_until <= now,
+            CollectionJob.lease_owner == owner,
+        ))
+        .values(
+            lease_owner=owner,
+            lease_until=now + timedelta(seconds=120),
+            status='running',
+            error_message=None,
+        )
+        .returning(CollectionJob.id)
+    )
+    acquired = result.first() is not None
     db.session.commit()
-    return True
+    db.session.expire_all()
+    return acquired
+
+
+def _release_lease(job_id, owner):
+    db.session.execute(
+        update(CollectionJob)
+        .where(CollectionJob.id == job_id, CollectionJob.lease_owner == owner)
+        .values(lease_owner=None, lease_until=None)
+    )
+    db.session.commit()
+    db.session.expire_all()
 
 
 def _upsert_video(channel, item, details=None):
@@ -125,6 +150,12 @@ def _step_videos(job, api):
         _upsert_video(channel, item, details.get(item['video_id']))
     job.page_token = response.get('next_page_token')
     if not job.page_token:
+        # A new walk starts comment collection over. Resume stays in this phase,
+        # so videos finished earlier in the same job stay marked.
+        Video.query.filter_by(channel_id=channel.id).update(
+            {Video.comments_synced_at: None},
+            synchronize_session='fetch',
+        )
         job.phase = 'comments'
         job.current_video_yt_id = None
     return 1
@@ -249,8 +280,8 @@ def run_collection(job_id, api, max_steps=None):
         job.status = 'completed'
         db.session.commit()
         return job
-    if not _lock(job, owner):
-        return job
+    if not _acquire_lease(job_id, owner):
+        return db.session.get(CollectionJob, job_id)
     steps = 0
     try:
         while True:
@@ -274,9 +305,5 @@ def run_collection(job_id, api, max_steps=None):
                 db.session.commit()
                 break
     finally:
-        job = db.session.get(CollectionJob, job_id)
-        if job is not None and job.lease_owner == owner:
-            job.lease_owner = None
-            job.lease_until = None
-            db.session.commit()
+        _release_lease(job_id, owner)
     return db.session.get(CollectionJob, job_id)

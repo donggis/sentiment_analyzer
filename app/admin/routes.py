@@ -4,7 +4,7 @@ import io
 import os
 from datetime import datetime
 
-from flask import Blueprint, Response, current_app, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, jsonify, redirect, render_template, request, stream_with_context, url_for
 
 from app import db
 from app.admin_auth import (
@@ -80,8 +80,9 @@ def csv_cell(value):
     return text
 
 
-def _csv_response(query):
+def _csv_response():
     def generate():
+        query = comment_query_from_args(request.args)
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(['comment_id', 'video_id', 'parent_id', 'author', 'published_at', 'likes', 'topic', 'tags', 'text'])
@@ -106,7 +107,7 @@ def _csv_response(query):
             buffer.seek(0)
             buffer.truncate(0)
 
-    response = Response(generate(), mimetype='text/csv; charset=utf-8')
+    response = Response(stream_with_context(generate()), mimetype='text/csv; charset=utf-8')
     response.headers['Content-Disposition'] = 'attachment; filename="comments.csv"'
     return response
 
@@ -254,4 +255,4 @@ def delete_tag(comment_id):
 @bp.route('/export/comments.csv')
 @bp.route('/api/admin/export/comments.csv')
 def export_comments():
-    return _csv_response(comment_query_from_args(request.args))
+    return _csv_response()
