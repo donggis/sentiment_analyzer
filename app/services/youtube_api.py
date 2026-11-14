@@ -58,7 +58,13 @@ class GoogleYouTubeApi:
     def __init__(self, api_key):
         if not api_key:
             raise YouTubeError('YOUTUBE_API_KEY is not configured', reason='config')
-        self.youtube = build('youtube', 'v3', developerKey=api_key, cache_discovery=False)
+        self.youtube = build(
+            'youtube', 'v3', developerKey=api_key,
+            cache_discovery=False,
+            # The bundled discovery file in this client version predates
+            # channels.list(forHandle=...). Fetch the live document instead.
+            static_discovery=False,
+        )
 
     def get_channel(self, handle=None, channel_id=None, username=None):
         kwargs = {'part': 'snippet,contentDetails,statistics'}
