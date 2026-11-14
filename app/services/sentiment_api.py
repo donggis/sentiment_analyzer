@@ -21,6 +21,7 @@ class SentimentAPIClient:
         # Prefer SENTIMENT_API_URL, fall back to MODAL_ML_BASE_URL for compatibility
         env_base = os.getenv('SENTIMENT_API_URL') or os.getenv('MODAL_ML_BASE_URL') or ''
         self.base_url = (base_url or env_base).strip()
+        self.external_enabled = os.getenv('ENABLE_EXTERNAL_AI', '').lower() == 'true'
         # Allow overriding timeout via env
         env_timeout = os.getenv('SENTIMENT_API_TIMEOUT')
         self.timeout = int(env_timeout) if env_timeout else timeout
@@ -50,6 +51,8 @@ class SentimentAPIClient:
         """Generic POST request to the external ML service.
         Returns parsed JSON or a dict with success=False and an error message.
         """
+        if not self.external_enabled:
+            return {'success': False, 'error': 'External AI is disabled.'}
         if self.mock_mode or not self.base_url:
             return {
                 'success': False,
@@ -81,6 +84,8 @@ class SentimentAPIClient:
         Returns:
             Dictionary with sentiment analysis results
         """
+        if not self.external_enabled:
+            return {'success': False, 'error': 'External AI is disabled.'}
         if self.mock_mode:
             return self._mock_analyze_text(text)
 
@@ -121,6 +126,8 @@ class SentimentAPIClient:
         Returns:
             Dictionary with batch analysis results
         """
+        if not self.external_enabled:
+            return {'success': False, 'error': 'External AI is disabled.'}
         if self.mock_mode:
             return self._mock_analyze_batch(texts)
 

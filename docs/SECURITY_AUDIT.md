@@ -42,3 +42,10 @@ GitHub 공개 clone 성공, 쓰기 권한 미확인(gh 미설치). Fly 로그인
 설치 환경 pip-audit 재검사: No known vulnerabilities found (docs/pip-audit-upgraded.json). uv pip check: 102 packages, compatible.
 이 결과는 소스 취약점, 컨테이너 OS, 라이선스, 실제 배포 안전성 검증을 대체하지 않는다.
 Fly 기존 앱 sentiment-analyzer-ywuuhq: 머신/볼륨/Secrets 없음. 리소스 생성/배포 미실행.
+
+## 외부 전송 차단 후속 수정
+- sentiment API는 ENABLE_EXTERNAL_AI=true 명시 전 요청을 거부한다. URL/키 설정만으로 활성화되지 않는다.
+- 기존 Flask-Mail 전송 경로는 공통 transport에서 거부한다.
+- /auth/ 이하 기존 OAuth/회원/결제 경로 차단. 신규 관리자 세션 구현 전에는 기존 Google 로그인도 사용 불가.
+- 새 발견: migrations/versions/a140228fb140_make_theresa_pro_user.py가 특정 원본 개발자 이메일의 구독 권한을 변경한다. 신규 개인용 배포 migration 설계에서 제거 필요. 현재 실행하지 않음.
+- 실제 회귀 테스트: 31 passed, 2 warnings, 22.16s. --disable-socket으로 외부 네트워크 차단.

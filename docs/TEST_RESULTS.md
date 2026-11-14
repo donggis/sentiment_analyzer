@@ -26,3 +26,8 @@
 - 외부 네트워크 차단 실행: pytest --ignore=tests/e2e -m "not integration and not youtube and not redis" --disable-socket -q --maxfail=10
 - 결과: 10 failed, 20 passed, 3 deselected, 109.50s. 10개 실패에서 중단하여 나머지 미실행. 기존 SaaS 인증 테스트는 관리자 설정 부재로 503을 받아 실패. 테스트를 통과시키기 위해 앱 인증을 우회하지 않음.
 - Fly 배포 미실행. docs/DEPLOYMENT.md 참고.
+
+## 외부 전송 기본 차단 검증
+명령: .venv/Scripts/python.exe -m pytest tests/test_private_security.py tests/test_private_egress.py --disable-socket -q
+결과: 31 passed, 2 warnings in 22.16s.
+검증 범위: 운영 키, 기존 결제/메일/OAuth 차단, 외부 AI opt-in 부재 시 HTTP 미호출, 기존 Basic Auth 접근 제어. 관리자 세션/CSRF/클러스터링/배포 검증은 포함하지 않음.

@@ -66,7 +66,7 @@ def create_app(config_class=Config):
         if request.path == '/healthz':
             return None
         # Disable legacy billing and contact endpoints in private mode.
-        if request.path.startswith('/auth/subscribe') or request.path in (
+        if request.path.startswith('/auth/') or request.path in (
             '/auth/create-checkout-session', '/auth/stripe/webhook', '/contact',
             '/subscribe/stripe', '/webhook/stripe'
         ):
