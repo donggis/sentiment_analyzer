@@ -471,12 +471,15 @@ def analyze_channel(channel_id, use_external=False):
     return analyze_comments(comments, use_external=use_external)
 
 
-def _filtered_rows(args):
-    query = (
+def _joined():
+    return (
         db.session.query(CommentConcern, CollectedComment, Video)
         .join(CollectedComment, CommentConcern.comment_id == CollectedComment.id)
         .join(Video, CollectedComment.video_id == Video.id)
     )
+
+
+def _apply_concern_filters(query, args):
     video_id = (args.get('video') or '').strip()
     if video_id:
         query = query.filter(Video.yt_video_id == video_id)
@@ -489,7 +492,11 @@ def _filtered_rows(args):
     kind = (args.get('kind') or '').strip()
     if kind in KIND_LABELS:
         query = query.filter(CommentConcern.kind == kind)
-    return query.all()
+    return query
+
+
+def _filtered_rows(args):
+    return _apply_concern_filters(_joined(), args).all()
 
 
 def build_summary(theme, count, likes, cue_counter, external_summary):
@@ -538,8 +545,52 @@ def _video_link(video_id):
     return 'https://www.youtube.com/watch?v={}'.format(quote(video_id or '', safe=''))
 
 
-def concern_groups(args, limit=None):
-    """Aggregate stored concerns for the current video and date filters."""
+def _sample_dict(comment, video):
+    published = comment.published_at
+    return {
+        'id': comment.id,
+        'text': comment.text or '',
+        'likes': comment.like_count or 0,
+        'author': comment.author_display or '',
+        'video_id': video.yt_video_id,
+        'video_title': video.title,
+        'comment_url': _comment_link(video.yt_video_id, comment.yt_comment_id),
+        'video_url': _video_link(video.yt_video_id),
+        'is_reply': bool(comment.parent_yt_comment_id),
+        'published_label': published.strftime('%Y-%m-%d') if published else '',
+        'published_ord': published.timestamp() if published else float('-inf'),
+    }
+
+
+def _sample_sort_key(sample):
+    return (-sample['likes'], -sample['published_ord'], -sample['id'])
+
+
+def _groups_from_buckets(buckets):
+    groups = []
+    for bucket in buckets.values():
+        samples = sorted(bucket['samples'], key=_sample_sort_key)[:3]
+        external = None
+        if bucket['summaries']:
+            external = Counter(bucket['summaries']).most_common(1)[0][0]
+        groups.append({
+            'theme': bucket['theme'],
+            'count': bucket['count'],
+            'likes': bucket['likes'],
+            'summary': build_summary(bucket['theme'], bucket['count'], bucket['likes'], bucket['cues'], external),
+            'kind_label': _kind_label(bucket['kinds']),
+            'kind_counts': dict(bucket['kinds']),
+            'samples': samples,
+            'method': 'external' if bucket['methods'].get('external') else 'local',
+        })
+    groups.sort(key=lambda group: (-group['count'], -group['likes'], group['theme']))
+    for index, group in enumerate(groups, start=1):
+        group['rank'] = index
+    return groups
+
+
+def _groups_full(args):
+    """One pass over the filtered rows. Used by the concerns page and CSV."""
     buckets = {}
     for concern, comment, video in _filtered_rows(args):
         bucket = buckets.get(concern.theme)
@@ -564,45 +615,133 @@ def concern_groups(args, limit=None):
                 bucket['cues'][cue] += 1
         if concern.summary:
             bucket['summaries'].append(concern.summary)
-        published = comment.published_at
-        bucket['samples'].append({
-            'id': comment.id,
-            'text': comment.text or '',
-            'likes': comment.like_count or 0,
-            'author': comment.author_display or '',
-            'video_id': video.yt_video_id,
-            'video_title': video.title,
-            'comment_url': _comment_link(video.yt_video_id, comment.yt_comment_id),
-            'video_url': _video_link(video.yt_video_id),
-            'is_reply': bool(comment.parent_yt_comment_id),
-            'published_label': published.strftime('%Y-%m-%d') if published else '',
-            'published_ord': published.timestamp() if published else float('-inf'),
-        })
+        bucket['samples'].append(_sample_dict(comment, video))
+        if len(bucket['samples']) > 12:
+            bucket['samples'].sort(key=_sample_sort_key)
+            del bucket['samples'][3:]
+    return _groups_from_buckets(buckets)
+
+
+def _theme_totals(args):
+    count_col = db.func.count(CommentConcern.id)
+    likes_col = db.func.coalesce(db.func.sum(CollectedComment.like_count), 0)
+    grouped = (
+        db.session.query(CommentConcern.theme, count_col, likes_col)
+        .join(CollectedComment, CommentConcern.comment_id == CollectedComment.id)
+        .join(Video, CollectedComment.video_id == Video.id)
+    )
+    grouped = _apply_concern_filters(grouped, args).group_by(CommentConcern.theme).order_by(
+        count_col.desc(),
+        likes_col.desc(),
+        CommentConcern.theme.asc(),
+    )
+    counted = grouped.order_by(None).subquery()
+    total = db.session.query(db.func.count()).select_from(counted).scalar() or 0
+    return grouped, total
+
+
+def _top_samples(args, theme, size):
+    query = _apply_concern_filters(_joined(), args).filter(CommentConcern.theme == theme)
+    query = query.order_by(
+        CollectedComment.like_count.desc(),
+        CollectedComment.published_at.is_(None).asc(),
+        CollectedComment.published_at.desc(),
+        CollectedComment.id.desc(),
+    ).limit(size)
+    samples = []
+    cues = Counter()
+    for concern, comment, video in query.all():
+        samples.append(_sample_dict(comment, video))
+        for cue in (concern.cues or '').split(','):
+            if cue:
+                cues[cue] += 1
+    return samples, cues
+
+
+def _kind_counts_for(args, themes):
+    if not themes:
+        return {}
+    query = (
+        db.session.query(CommentConcern.theme, CommentConcern.kind, db.func.count(CommentConcern.id))
+        .join(CollectedComment, CommentConcern.comment_id == CollectedComment.id)
+        .join(Video, CollectedComment.video_id == Video.id)
+        .filter(CommentConcern.theme.in_(themes))
+    )
+    counts = {}
+    for theme, kind, count in _apply_concern_filters(query, args).group_by(CommentConcern.theme, CommentConcern.kind):
+        counts.setdefault(theme, Counter())[kind] = count
+    return counts
+
+
+def _external_themes(args, themes):
+    if not themes:
+        return set()
+    query = (
+        db.session.query(CommentConcern.theme)
+        .join(CollectedComment, CommentConcern.comment_id == CollectedComment.id)
+        .join(Video, CollectedComment.video_id == Video.id)
+        .filter(CommentConcern.theme.in_(themes), CommentConcern.method == 'external')
+    )
+    return {theme for (theme,) in _apply_concern_filters(query, args).distinct()}
+
+
+def _common_external_summary(args, theme):
+    count_col = db.func.count(CommentConcern.id)
+    query = (
+        db.session.query(CommentConcern.summary, count_col)
+        .join(CollectedComment, CommentConcern.comment_id == CollectedComment.id)
+        .join(Video, CollectedComment.video_id == Video.id)
+        .filter(CommentConcern.theme == theme, CommentConcern.summary.isnot(None))
+    )
+    row = (
+        _apply_concern_filters(query, args)
+        .group_by(CommentConcern.summary)
+        .order_by(count_col.desc(), CommentConcern.summary.asc())
+        .limit(1)
+        .first()
+    )
+    return row[0] if row else None
+
+
+def _groups_limited(args, limit):
+    """Counts in SQL, then only the representative rows for the themes on screen."""
+    grouped, total = _theme_totals(args)
+    if limit < 1 or total == 0:
+        return [], total
+    rows = grouped.limit(limit).all()
+    themes = [theme for theme, _count, _likes in rows]
+    kinds = _kind_counts_for(args, themes)
+    external_themes = _external_themes(args, themes)
     groups = []
-    for bucket in buckets.values():
-        samples = sorted(bucket['samples'], key=lambda sample: (
-            -sample['likes'], -sample['published_ord'], -sample['id'],
-        ))[:3]
-        external = None
-        if bucket['summaries']:
-            external = Counter(bucket['summaries']).most_common(1)[0][0]
+    for index, (theme, count, likes) in enumerate(rows, start=1):
+        samples, cues = _top_samples(args, theme, 3)
+        kind_counts = kinds.get(theme, Counter())
+        external_summary = _common_external_summary(args, theme) if theme in external_themes else None
         groups.append({
-            'theme': bucket['theme'],
-            'count': bucket['count'],
-            'likes': bucket['likes'],
-            'summary': build_summary(bucket['theme'], bucket['count'], bucket['likes'], bucket['cues'], external),
-            'kind_label': _kind_label(bucket['kinds']),
-            'kind_counts': dict(bucket['kinds']),
+            'rank': index,
+            'theme': theme,
+            'count': int(count or 0),
+            'likes': int(likes or 0),
+            'summary': build_summary(theme, int(count or 0), int(likes or 0), cues, external_summary),
+            'kind_label': _kind_label(kind_counts),
+            'kind_counts': dict(kind_counts),
             'samples': samples,
-            'method': 'external' if bucket['methods'].get('external') else 'local',
+            'method': 'external' if theme in external_themes else 'local',
         })
-    groups.sort(key=lambda group: (-group['count'], -group['likes'], group['theme']))
-    for index, group in enumerate(groups, start=1):
-        group['rank'] = index
-    total = len(groups)
-    if limit is not None:
-        groups = groups[:limit]
     return groups, total
+
+
+def concern_groups(args, limit=None):
+    """Aggregate stored concerns for the current video and date filters.
+
+    A limit, such as the dashboard preview, aggregates in SQL and loads only
+    a few representative comments. The concerns page and CSV pass no limit and
+    read the filtered set once.
+    """
+    if limit is not None:
+        return _groups_limited(args, limit)
+    groups = _groups_full(args)
+    return groups, len(groups)
 
 
 def stored_concern_count():

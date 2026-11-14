@@ -147,6 +147,33 @@ def test_groups_rank_by_frequency_then_likes(app):
         assert early == []
 
 
+def test_dashboard_preview_keeps_full_counts(app):
+    with app.app_context():
+        channel = _channel()
+        video_a = _video(channel, 'va', '영상A')
+        video_b = _video(channel, 'vb', '영상B')
+        for index in range(8):
+            _comment(video_a, f'hot-{index}', '배송이 느려요', index + 1, datetime(2024, 2, 1))
+        _comment(video_b, 'pricey', '가격이 너무 비싸요', 100, datetime(2024, 3, 2))
+        db.session.commit()
+        analyze_comments(CollectedComment.query.all(), use_external=False)
+        full, total = concern_groups({})
+        preview, preview_total = concern_groups({}, limit=1)
+        assert total == preview_total == 2
+        assert full[0]['theme'] == '배송'
+        assert preview[0]['theme'] == '배송'
+        assert preview[0]['count'] == full[0]['count'] == 8
+        assert preview[0]['likes'] == full[0]['likes'] == 36
+        assert preview[0]['samples'][0]['text'] == full[0]['samples'][0]['text']
+        assert preview[0]['samples'][0]['likes'] == 8
+        assert '댓글 8개' in preview[0]['summary']
+        other, other_total = concern_groups({'video': 'vb'}, limit=5)
+        assert other_total == 1
+        assert other[0]['theme'] == '가격'
+        assert other[0]['count'] == 1
+        assert other[0]['likes'] == 100
+
+
 def test_dashboard_and_csv_export(client, app):
     with app.app_context():
         _library()
