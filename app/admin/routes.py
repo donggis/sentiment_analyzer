@@ -22,9 +22,32 @@ from app.admin_auth import (
 )
 from app.models import CollectedComment, CollectionJob, CommentTag, CommentTopic, Topic, Video
 from app.services.collector import run_collection
+from app.services.concerns import (
+    KIND_LABELS,
+    analyze_comments,
+    concern_groups,
+    external_ai_enabled,
+    stored_concern_count,
+)
 from app.services.youtube_api import GoogleYouTubeApi, YouTubeError
 
 bp = Blueprint('admin', __name__)
+
+
+def _concern_filters(args):
+    kept = {}
+    for key in ('video', 'start', 'end', 'kind'):
+        value = (args.get(key) or '').strip()
+        if not value:
+            continue
+        if key == 'kind' and value not in KIND_LABELS:
+            continue
+        if key == 'video' and len(value) > 64:
+            continue
+        if key in ('start', 'end') and len(value) > 10:
+            continue
+        kept[key] = value
+    return kept
 
 
 def _topics_for(channel_id):
@@ -162,6 +185,8 @@ def dashboard():
         if value:
             kept[key] = value
     export_url = url_for('admin.export_comments', **kept)
+    concern_kept = _concern_filters(request.args)
+    concern_preview, concern_total = concern_groups(concern_kept, limit=5)
     return render_template(
         'admin/dashboard.html',
         job=job,
@@ -174,6 +199,10 @@ def dashboard():
         prev_url=url_for('admin.dashboard', page=page - 1, **kept) if page > 1 else None,
         next_url=url_for('admin.dashboard', page=page + 1, **kept),
         default_channel=os.environ.get('TARGET_CHANNEL_URL') or 'https://www.youtube.com/@jangpm',
+        concern_preview=concern_preview,
+        concern_total=concern_total,
+        concern_stored=stored_concern_count(),
+        concerns_url=url_for('admin.concerns', **concern_kept),
     )
 
 
@@ -256,3 +285,75 @@ def delete_tag(comment_id):
 @bp.route('/api/admin/export/comments.csv')
 def export_comments():
     return _csv_response()
+
+
+def _concern_csv(groups):
+    buffer = io.StringIO()
+    buffer.write('\ufeff')
+    writer = csv.writer(buffer)
+    writer.writerow([
+        'rank', 'theme', 'kind', 'comment_count', 'like_sum', 'summary',
+        'sample_text', 'sample_likes', 'sample_author', 'video_id', 'video_title', 'comment_url',
+    ])
+    for group in groups:
+        samples = group['samples'] or [{}]
+        for sample in samples:
+            writer.writerow([
+                csv_cell(group['rank']),
+                csv_cell(group['theme']),
+                csv_cell(group['kind_label']),
+                csv_cell(group['count']),
+                csv_cell(group['likes']),
+                csv_cell(group['summary']),
+                csv_cell(sample.get('text', '')),
+                csv_cell(sample.get('likes', '')),
+                csv_cell(sample.get('author', '')),
+                csv_cell(sample.get('video_id', '')),
+                csv_cell(sample.get('video_title', '')),
+                csv_cell(sample.get('comment_url', '')),
+            ])
+    return buffer.getvalue()
+
+
+@bp.route('/admin/concerns')
+def concerns():
+    kept = _concern_filters(request.args)
+    groups, total = concern_groups(kept)
+    videos = Video.query.order_by(Video.published_at.desc()).limit(200).all()
+    shown = groups[:100]
+    return render_template(
+        'admin/concerns.html',
+        groups=shown,
+        total=total,
+        hidden=max(total - len(shown), 0),
+        videos=videos,
+        filters=request.args,
+        kinds=KIND_LABELS,
+        export_url=url_for('admin.export_concerns', **kept),
+        external_enabled=external_ai_enabled(),
+        stored=stored_concern_count(),
+    )
+
+
+@bp.route('/admin/concerns/analyze', methods=['POST'])
+def analyze_concerns():
+    use_external = (request.form.get('mode') or '') == 'external'
+    comments = CollectedComment.query.order_by(CollectedComment.id).all()
+    result = analyze_comments(comments, use_external=use_external)
+    params = _concern_filters(request.form)
+    if not params:
+        params = _concern_filters(request.args)
+    params['found'] = result['concerns']
+    params['calls'] = result['external_calls']
+    if use_external:
+        params['mode'] = 'external'
+    return redirect(url_for('admin.concerns', **params))
+
+
+@bp.route('/export/concerns.csv')
+@bp.route('/api/admin/export/concerns.csv')
+def export_concerns():
+    groups, _total = concern_groups(request.args)
+    response = Response(_concern_csv(groups), mimetype='text/csv; charset=utf-8')
+    response.headers['Content-Disposition'] = 'attachment; filename="concerns.csv"'
+    return response

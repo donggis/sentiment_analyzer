@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>시청자 고민과 문제</title>
+  <style>
+    body { font-family: sans-serif; margin: 1rem; color: #222; }
+    article { border-top: 1px solid #ddd; padding: 0.8rem 0; }
+    form.inline { display: inline; }
+    .muted { color: #555; }
+    input, select, button { padding: 0.3rem; }
+    blockquote { margin: 0.4rem 0 0.4rem 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>시청자 고민과 문제</h1>
+    <nav>
+      <a href="{{ url_for('admin.dashboard') }}">댓글</a>
+      <a href="{{ url_for('admin.concerns') }}">고민·문제</a>
+    </nav>
+    <form class="inline" method="post" action="{{ url_for('admin.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">로그아웃</button>
+    </form>
+  </header>
+
+  <p>수집한 댓글과 답글에서 걱정, 안 되는 점, 질문, 도움을 구하는 말을 골라 주제별로 모읍니다. 자주 나온 순이고, 같으면 좋아요가 많은 순입니다.</p>
+  <p class="muted">기본 분석은 이 서버에서만 합니다. 댓글을 밖으로 보내지 않고, 요금도 없습니다. 수집이 끝나면 같은 방식으로 한 번 더 고릅니다.</p>
+  {% if external_enabled %}
+  <p class="muted">외부 AI 분석은 선택입니다. 한 번에 최대 20개, 호출은 기본 4번이고 8번을 넘기지 않습니다. 주소가 없거나 응답이 이상하면 서버 안 결과를 그대로 둡니다.</p>
+  {% endif %}
+
+  {% if filters.get('found') %}
+  <p>
+    {{ filters.get('found') }}개 댓글에서 고민·문제를 찾았습니다.
+    {% if filters.get('mode') == 'external' %}
+      외부 호출 {{ filters.get('calls') }}번.
+      {% if filters.get('calls') == '0' %}호출하지 않고 서버 안에서 분석했습니다.{% endif %}
+    {% else %}
+      서버 안에서 분석했습니다. 추가 요금은 없습니다.
+    {% endif %}
+  </p>
+  {% endif %}
+
+  <section>
+    <h2>다시 분석</h2>
+    <form method="post" action="{{ url_for('admin.analyze_concerns') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="mode" value="local">
+      <input type="hidden" name="video" value="{{ filters.get('video', '') }}">
+      <input type="hidden" name="start" value="{{ filters.get('start', '') }}">
+      <input type="hidden" name="end" value="{{ filters.get('end', '') }}">
+      <input type="hidden" name="kind" value="{{ filters.get('kind', '') }}">
+      <button type="submit">서버에서 분석</button>
+    </form>
+    {% if external_enabled %}
+    <form method="post" action="{{ url_for('admin.analyze_concerns') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="mode" value="external">
+      <input type="hidden" name="video" value="{{ filters.get('video', '') }}">
+      <input type="hidden" name="start" value="{{ filters.get('start', '') }}">
+      <input type="hidden" name="end" value="{{ filters.get('end', '') }}">
+      <input type="hidden" name="kind" value="{{ filters.get('kind', '') }}">
+      <button type="submit">외부 AI로 분석</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>거르기</h2>
+    <form method="get" action="{{ url_for('admin.concerns') }}">
+      <select name="video">
+        <option value="">모든 영상</option>
+        {% for video in videos %}
+        <option value="{{ video.yt_video_id }}" {% if filters.get('video') == video.yt_video_id %}selected{% endif %}>{{ video.title }}</option>
+        {% endfor %}
+      </select>
+      <select name="kind">
+        <option value="">모든 종류</option>
+        {% for key, label in kinds.items() %}
+        <option value="{{ key }}" {% if filters.get('kind') == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label>시작 <input name="start" type="date" value="{{ filters.get('start', '') }}"></label>
+      <label>끝 <input name="end" type="date" value="{{ filters.get('end', '') }}"></label>
+      <button type="submit">적용</button>
+      <a href="{{ export_url }}">CSV 내보내기</a>
+    </form>
+    <p class="muted">끝 날짜는 그 날 0시 이전까지입니다. 댓글 화면의 날짜 조건과 같습니다.</p>
+  </section>
+
+  <p>주제 {{ total }}개{% if hidden %} 중 상위 {{ groups|length }}개만 표시합니다. CSV에는 모두 있습니다.{% endif %}</p>
+
+  {% for group in groups %}
+  <article>
+    <h3>{{ group.rank }}. {{ group.theme }}</h3>
+    <p><strong>댓글 {{ group.count }}개 · 좋아요 {{ group.likes }} · {{ group.kind_label }}</strong></p>
+    <p>{{ group.summary }}</p>
+    <p class="muted">
+      {% for key, label in kinds.items() %}
+        {% if group.kind_counts.get(key) %}{{ label }} {{ group.kind_counts.get(key) }} {% endif %}
+      {% endfor %}
+      {% if group.method == 'external' %}· 외부 AI가 주제 이름을 다듬음{% endif %}
+    </p>
+    {% for sample in group.samples %}
+    <blockquote>
+      <a href="{{ sample.comment_url }}">{{ sample.text }}</a>
+      <div class="muted">
+        좋아요 {{ sample.likes }}
+        {% if sample.author %} · {{ sample.author }}{% endif %}
+        {% if sample.published_label %} · {{ sample.published_label }}{% endif %}
+        {% if sample.is_reply %} · 답글{% endif %}
+        · <a href="{{ sample.video_url }}">{{ sample.video_title }}</a>
+      </div>
+    </blockquote>
+    {% endfor %}
+  </article>
+  {% else %}
+  <p>{% if stored %}이 조건에 해당하는 고민·문제가 없습니다.{% else %}아직 없습니다. 위의 버튼으로 이미 수집한 댓글을 분석할 수 있습니다.{% endif %}</p>
+  {% endfor %}
+</body>
+</html>

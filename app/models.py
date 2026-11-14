@@ -360,6 +360,28 @@ class CommentTopic(db.Model):
     topic = db.relationship('Topic')
 
 
+class CommentConcern(db.Model):
+    """One collected comment that states a worry or a problem to solve."""
+    __tablename__ = 'comment_concern'
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(
+        db.Integer,
+        db.ForeignKey('collected_comment.id', ondelete='CASCADE'),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    kind = db.Column(db.String(16), nullable=False, index=True)
+    theme = db.Column(db.String(80), nullable=False, index=True)
+    cues = db.Column(db.String(120), nullable=False, default='')
+    summary = db.Column(db.String(200), nullable=True)
+    score = db.Column(db.Integer, nullable=False, default=0)
+    method = db.Column(db.String(16), nullable=False, default='local')
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+
+    comment = db.relationship('CollectedComment')
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))

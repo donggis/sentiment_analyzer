@@ -8,6 +8,7 @@ from sqlalchemy import or_, update
 from app import db
 from app.models import Channel, CollectedComment, CollectionJob, Video, _utcnow
 from app.services.clustering import cluster_channel
+from app.services.concerns import analyze_channel
 from app.services.youtube_api import YouTubeError, parse_published
 
 HANDLE_RE = re.compile(r'youtube\.com/@([\w.-]+)', re.IGNORECASE)
@@ -262,6 +263,7 @@ def _one_step(job, api):
     if job.phase == 'cluster':
         if job.channel_id:
             cluster_channel(job.channel_id)
+            analyze_channel(job.channel_id, use_external=False)
         job.phase = 'done'
         job.status = 'completed'
         return 0

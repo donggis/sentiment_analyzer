@@ -101,7 +101,10 @@ def test_legacy_billing_and_contact_disabled(private_client, path, method):
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize('path', ['/api/stats', '/api/admin/export/comments.csv', '/export/comments.csv'])
+@pytest.mark.parametrize('path', [
+    '/api/stats', '/api/admin/export/comments.csv', '/export/comments.csv',
+    '/export/concerns.csv', '/api/admin/export/concerns.csv',
+])
 def test_unauthenticated_api_and_csv_blocked(private_client, path):
     assert private_client.get(path).status_code == 401
 
@@ -111,6 +114,9 @@ def test_html_page_redirects_to_login(private_client):
     assert response.status_code == 302
     assert '/login' in response.location
     assert 'accounts.google.com' not in response.location
+    concerns = private_client.get('/admin/concerns')
+    assert concerns.status_code == 302
+    assert '/login' in concerns.location
 
 
 def test_health_minimal(private_client):
@@ -124,6 +130,18 @@ def test_basic_auth_is_not_accepted(private_client):
 def test_unicode_credentials_do_not_crash(private_client):
     response = _login(private_client, username='관리자', password='틀림')
     assert response.status_code == 401
+
+
+def test_concern_analyze_requires_csrf(private_client):
+    _login(private_client)
+    missing = private_client.post('/admin/concerns/analyze', data={'mode': 'local'})
+    assert missing.status_code == 400
+    accepted = private_client.post('/admin/concerns/analyze', data={
+        'mode': 'external',
+        'csrf_token': _csrf(private_client),
+    }, headers={'Referer': 'https://localhost/admin/concerns'})
+    assert accepted.status_code == 302
+    assert '/admin/concerns' in accepted.location
 
 
 def test_login_csrf_missing(private_client):
