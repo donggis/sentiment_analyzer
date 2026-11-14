@@ -46,7 +46,7 @@ YouTube Data API 할당량은 Fly 요금과 별개입니다.
 넣으면 안 되는 이름:
 
 - `ADMIN_PASSWORD` — 평문 비밀번호는 거부됩니다.
-- `ENABLE_EXTERNAL_AI` — 넣지 않으면 유료 AI는 꺼진 상태입니다. 나중에 켜려면 값을 `true`로 하고, 그 호출 주소도 그때 정합니다.
+- `ENABLE_EXTERNAL_AI` — 넣지 않으면 유료 AI는 꺼진 상태입니다. 나중에 켜려면 값을 `true`로 하고, 그 호출 주소도 그때 정합니다. 고민·문제 분석은 이 값이 없어도 서버 안에서 돌아가며 요금이 없습니다. 값이 `true`일 때 관리자가 외부 분석 버튼을 누른 경우에만 호출하고, 그때도 최대 8번입니다.
 - `STRIPE_SECRET_KEY`, `GOOGLE_CLIENT_SECRET`, `MAIL_PASSWORD` — 이 배포에서는 쓰지 않습니다.
 
 해시 만들기 (비밀번호는 화면에 남지 않습니다):

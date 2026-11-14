@@ -16,6 +16,10 @@
 <body>
   <header>
     <h1>유튜브 댓글 라이브러리</h1>
+    <nav>
+      <a href="{{ url_for('admin.dashboard') }}">댓글</a>
+      <a href="{{ concerns_url }}">고민·문제</a>
+    </nav>
     <form class="inline" method="post" action="{{ url_for('admin.logout') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit">로그아웃</button>
@@ -44,6 +48,33 @@
       <button type="submit">이어서 수집</button>
     </form>
     {% endif %}
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>고민·문제</h2>
+    <p class="muted">시청자가 걱정하거나, 막히거나, 해결을 부탁한 댓글과 답글입니다. 많이 나온 주제부터 보여 주고, 횟수가 같으면 좋아요가 많은 쪽을 위로 올립니다. 기본 분석은 이 서버 안에서만 하며 추가 요금이 없습니다.</p>
+    <p><a href="{{ concerns_url }}">고민·문제 전체 보기</a></p>
+    {% if concern_total %}
+    <ul>
+      {% for group in concern_preview %}
+      <li>
+        <strong>{{ group.rank }}. {{ group.theme }}</strong>
+        — 댓글 {{ group.count }}개, 좋아요 {{ group.likes }}
+        <div>{{ group.summary }}</div>
+        {% if group.samples %}
+        <div class="muted"><a href="{{ group.samples[0].comment_url }}">{{ group.samples[0].text }}</a></div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if concern_total > concern_preview|length %}
+    <p class="muted">상위 {{ concern_preview|length }}개만 표시합니다. 전체 {{ concern_total }}개 주제는 고민·문제 화면에 있습니다.</p>
+    {% endif %}
+    {% elif concern_stored %}
+    <p>이 조건에 해당하는 고민·문제가 없습니다.</p>
+    {% else %}
+    <p>아직 없습니다. 수집이 끝나면 서버에서 자동으로 고르고, 그 전에 돌리려면 고민·문제 화면의 분석 버튼을 누르면 됩니다.</p>
     {% endif %}
   </section>
 
