@@ -8,6 +8,12 @@ from requests.exceptions import RequestException, Timeout, ConnectionError
 from app.services.sentiment_api import SentimentAPIClient, get_sentiment_client
 
 
+@pytest.fixture(autouse=True)
+def allow_mocked_external_ai(monkeypatch):
+    """These tests exercise the HTTP client with a fake transport, so they opt in."""
+    monkeypatch.setenv('ENABLE_EXTERNAL_AI', 'true')
+
+
 class TestSentimentAPIClient:
     """Test the SentimentAPIClient class."""
     

@@ -106,6 +106,9 @@ class Video(db.Model):
     likes = db.Column(db.Integer, default=0)
     comments = db.Column(db.Integer, default=0)
     last_synced_at = db.Column(db.DateTime, nullable=True)
+    duration_seconds = db.Column(db.Integer, nullable=True)
+    comments_disabled = db.Column(db.Boolean, nullable=False, default=False)
+    comments_synced_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
@@ -267,6 +270,94 @@ class SentimentFeedback(db.Model):
         # Index for efficient training data queries
         db.Index('idx_training_queries', 'used_for_training', 'created_at'),
     )
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class AdminSession(db.Model):
+    """Server-side administrator session. The cookie stores only an unguessable id."""
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+
+
+class LoginAttempt(db.Model):
+    """Shared login-failure record so every worker enforces the same limit."""
+    id = db.Column(db.Integer, primary_key=True)
+    ip_hash = db.Column(db.String(64), nullable=False, index=True)
+    success = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False, index=True)
+
+
+class CollectionJob(db.Model):
+    """Resumable YouTube collection cursor. One row is one channel walk."""
+    id = db.Column(db.Integer, primary_key=True)
+    channel_ref = db.Column(db.String(500), nullable=False)
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'), nullable=True, index=True)
+    status = db.Column(db.String(32), nullable=False, default='pending', index=True)
+    phase = db.Column(db.String(32), nullable=False, default='channel')
+    page_token = db.Column(db.String(255), nullable=True)
+    saved_next_thread_token = db.Column(db.String(255), nullable=True)
+    current_video_yt_id = db.Column(db.String(64), nullable=True)
+    reply_parent_id = db.Column(db.String(128), nullable=True)
+    reply_page_token = db.Column(db.String(255), nullable=True)
+    pending_reply_ids = db.Column(db.JSON, nullable=True)
+    api_steps = db.Column(db.Integer, nullable=False, default=0)
+    error_message = db.Column(db.Text, nullable=True)
+    lease_owner = db.Column(db.String(64), nullable=True)
+    lease_until = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+
+class CollectedComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    yt_comment_id = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    video_id = db.Column(db.Integer, db.ForeignKey('video.id'), nullable=False, index=True)
+    parent_yt_comment_id = db.Column(db.String(128), nullable=True, index=True)
+    text = db.Column(db.Text, nullable=False, default='')
+    author_display = db.Column(db.String(255), nullable=True)
+    like_count = db.Column(db.Integer, nullable=False, default=0)
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
+    reply_count = db.Column(db.Integer, nullable=False, default=0)
+    replies_complete = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    video = db.relationship('Video', backref=db.backref('collected_comments', lazy='dynamic'))
+
+
+class CommentTag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('collected_comment.id'), nullable=False, index=True)
+    tag = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint('comment_id', 'tag', name='uq_comment_tag'),
+    )
+
+
+class Topic(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    channel_id = db.Column(db.Integer, db.ForeignKey('channel.id'), nullable=False, index=True)
+    label = db.Column(db.String(255), nullable=False)
+    keywords = db.Column(db.String(500), nullable=True)
+    method = db.Column(db.String(32), nullable=False, default='local')
+    comment_count = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
+
+
+class CommentTopic(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('collected_comment.id'), nullable=False, unique=True)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topic.id'), nullable=False, index=True)
+    confidence = db.Column(db.Float, nullable=False, default=0.0)
+
+    topic = db.relationship('Topic')
 
 
 @login_manager.user_loader

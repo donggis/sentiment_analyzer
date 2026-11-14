@@ -84,10 +84,12 @@ class SentimentAPIClient:
         Returns:
             Dictionary with sentiment analysis results
         """
-        if not self.external_enabled:
-            return {'success': False, 'error': 'External AI is disabled.'}
+        # In-process mock data never leaves the machine. A configured URL is not
+        # enough to turn on a paid request; that still requires ENABLE_EXTERNAL_AI.
         if self.mock_mode:
             return self._mock_analyze_text(text)
+        if not self.external_enabled:
+            return {'success': False, 'error': 'External AI is disabled.'}
 
         try:
             response = requests.post(
@@ -126,10 +128,21 @@ class SentimentAPIClient:
         Returns:
             Dictionary with batch analysis results
         """
-        if not self.external_enabled:
-            return {'success': False, 'error': 'External AI is disabled.'}
+        if not texts:
+            return {
+                'results': [],
+                'total_analyzed': 0,
+                'success': True,
+                'statistics': {
+                    'sentiment_distribution': {},
+                    'sentiment_percentages': {},
+                    'average_confidence': 0.0,
+                },
+            }
         if self.mock_mode:
             return self._mock_analyze_batch(texts)
+        if not self.external_enabled:
+            return {'success': False, 'error': 'External AI is disabled.'}
 
         # Since batch endpoint has issues, use individual analysis as fallback
         # First try the batch endpoint

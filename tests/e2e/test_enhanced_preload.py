@@ -6,6 +6,7 @@ Tests the complete workflow of preloading videos with metadata and 500 comments
 import pytest
 import time
 import json
+pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import Page, expect
 from unittest.mock import patch, MagicMock
 

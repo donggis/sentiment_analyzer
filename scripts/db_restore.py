@@ -22,10 +22,10 @@ class DatabaseRestore:
     def __init__(self):
         self.app = create_app()
         self.db_url = self.app.config.get('SQLALCHEMY_DATABASE_URI')
-        self.backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
-        
-        # Parse database URL
         self.db_type = self._get_db_type()
+        volume_backups = '/data/backups'
+        project_backups = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backups')
+        self.backup_dir = volume_backups if os.path.isdir(volume_backups) else project_backups
     
     def _get_db_type(self):
         """Determine database type from URL."""

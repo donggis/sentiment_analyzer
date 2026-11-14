@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>댓글 라이브러리</title>
+  <style>
+    body { font-family: sans-serif; margin: 1rem; color: #222; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.4rem; vertical-align: top; text-align: left; }
+    form.inline { display: inline; }
+    .muted { color: #555; }
+    input, select, button { padding: 0.3rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>유튜브 댓글 라이브러리</h1>
+    <form class="inline" method="post" action="{{ url_for('admin.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">로그아웃</button>
+    </form>
+  </header>
+
+  <section>
+    <h2>수집</h2>
+    <p class="muted">한 번에 일부만 가져옵니다. 중단돼도 같은 작업으로 이어서 받을 수 있고, 같은 댓글은 다시 쌓이지 않습니다.</p>
+    <form method="post" action="{{ url_for('admin.collect') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>채널 주소 <input name="channel_url" size="50" value="{{ default_channel }}"></label>
+      <label>이번 요청 페이지 수 <input name="budget" type="number" min="1" max="50" value="20"></label>
+      <button type="submit">새 수집</button>
+    </form>
+    {% if job %}
+    <p>작업 {{ job.id }}: {{ job.status }} / {{ job.phase }} / 진행 {{ job.api_steps }}단계
+      {% if job.error_message %} — {{ job.error_message }}{% endif %}
+    </p>
+    {% if job.phase != 'done' %}
+    <form method="post" action="{{ url_for('admin.collect') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="job_id" value="{{ job.id }}">
+      <input type="hidden" name="channel_url" value="{{ job.channel_ref }}">
+      <input type="hidden" name="budget" value="20">
+      <button type="submit">이어서 수집</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>찾기</h2>
+    <form method="get" action="{{ url_for('admin.dashboard') }}">
+      <input name="q" placeholder="댓글 검색" value="{{ filters.get('q', '') }}">
+      <select name="video">
+        <option value="">모든 영상</option>
+        {% for video in videos %}
+        <option value="{{ video.yt_video_id }}" {% if filters.get('video') == video.yt_video_id %}selected{% endif %}>{{ video.title }}</option>
+        {% endfor %}
+      </select>
+      <select name="topic">
+        <option value="">모든 주제</option>
+        {% for topic in topics %}
+        <option value="{{ topic.id }}" {% if filters.get('topic') == topic.id|string %}selected{% endif %}>{{ topic.label }} ({{ topic.comment_count }})</option>
+        {% endfor %}
+      </select>
+      <input name="tag" placeholder="태그" value="{{ filters.get('tag', '') }}">
+      <input name="start" type="date" value="{{ filters.get('start', '') }}">
+      <input name="end" type="date" value="{{ filters.get('end', '') }}">
+      <button type="submit">적용</button>
+      <a href="{{ export_url }}">CSV 내보내기</a>
+    </form>
+  </section>
+
+  <table>
+    <thead>
+      <tr><th>영상</th><th>댓글</th><th>주제</th><th>태그</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.comment.video.yt_video_id if row.comment.video else '' }}</td>
+        <td>
+          {{ row.comment.text }}
+          <div class="muted">{{ row.comment.author_display or '작성자 없음' }} · 좋아요 {{ row.comment.like_count }}
+            {% if row.comment.parent_yt_comment_id %} · 답글{% endif %}
+          </div>
+        </td>
+        <td>{{ row.topic.label if row.topic else '미분류' }}</td>
+        <td>
+          {% for tag in row.tags %}<span>{{ tag }} </span>{% endfor %}
+          <form method="post" action="{{ url_for('admin.add_tag', comment_id=row.comment.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input name="tag" maxlength="64" placeholder="태그">
+            <button type="submit">추가</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">표시할 댓글이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if prev_url %}<a href="{{ prev_url }}">이전</a>{% endif %}
+  <a href="{{ next_url }}">다음</a>
+</body>
+</html>

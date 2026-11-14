@@ -21,41 +21,79 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_enhanced_service():
-    """Test the enhanced YouTube service."""
-    print("\n" + "="*60)
-    print("Testing Enhanced YouTube Service")
-    print("="*60)
-    
-    try:
-        service = EnhancedYouTubeService()
-        print("✓ Enhanced service initialized successfully")
-        
-        # Test with a sample video ID (you can change this)
-        test_video_id = "dQw4w9WgXcQ"  # Rick Astley - Never Gonna Give You Up
-        
-        print(f"\nTesting with video ID: {test_video_id}")
-        
-        # Test video info fetching
-        video_info = service.get_video_info(test_video_id)
-        print(f"✓ Video found: {video_info['title']}")
-        print(f"  Total comments available: {video_info['statistics']['comments']:,}")
-        
-        # Test enhanced comment fetching (with small limit for testing)
-        result = service.get_all_available_comments(
-            video_id=test_video_id,
-            target_comments=50,  # Small number for testing
-            use_cache=False
-        )
-        
-        print(f"✓ Comments fetched: {len(result['comments'])}")
-        print(f"  Fetch percentage: {result['statistics']['fetch_percentage']:.1f}%")
-        print(f"  Fetch time: {result['statistics']['fetch_time_seconds']:.2f}s")
-        print(f"  Comments per second: {result['statistics']['comments_per_second']:.1f}")
-        
-    except Exception as e:
-        print(f"✗ Error testing enhanced service: {e}")
-        assert False, f"Error testing enhanced service: {e}"
+def _fake_youtube():
+    """Canned YouTube responses so this file never calls the network."""
+    video = {
+        'items': [{
+            'id': 'dQw4w9WgXcQ',
+            'snippet': {
+                'title': 'Test video',
+                'description': 'desc',
+                'channelTitle': 'Channel',
+                'publishedAt': '2020-01-01T00:00:00Z',
+                'thumbnails': {},
+            },
+            'contentDetails': {'duration': 'PT3M'},
+            'statistics': {'viewCount': '10', 'likeCount': '2', 'commentCount': '1'},
+        }]
+    }
+    threads = {
+        'items': [{
+            'id': 'thread1',
+            'snippet': {
+                'totalReplyCount': 0,
+                'topLevelComment': {
+                    'id': 'comment1',
+                    'snippet': {
+                        'textDisplay': 'hello',
+                        'authorDisplayName': 'viewer',
+                        'authorChannelId': {'value': 'UC1'},
+                        'authorProfileImageUrl': '',
+                        'likeCount': 0,
+                        'publishedAt': '2020-01-02T00:00:00Z',
+                    },
+                },
+            },
+        }]
+    }
+
+    class Request:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def execute(self):
+            return self.payload
+
+    class Resource:
+        def list(self, **kwargs):
+            if 'videoId' in kwargs:
+                return Request(threads)
+            return Request(video)
+
+    class Fake:
+        def videos(self):
+            return Resource()
+
+        def commentThreads(self):
+            return Resource()
+
+    return Fake()
+
+
+def test_enhanced_service(monkeypatch):
+    """Test the enhanced YouTube service against a fake API."""
+    monkeypatch.setenv('YOUTUBE_API_KEY', 'test-key')
+    monkeypatch.setattr('app.services.youtube_service.build', lambda *args, **kwargs: _fake_youtube())
+    service = EnhancedYouTubeService(api_key='test-key')
+    video_info = service.get_video_info('dQw4w9WgXcQ', use_cache=False)
+    assert video_info['title'] == 'Test video'
+    result = service.get_all_available_comments(
+        video_id='dQw4w9WgXcQ',
+        target_comments=50,
+        use_cache=False,
+    )
+    assert result['comments']
+    assert result['statistics']['comments_fetched'] >= 1
 
 
 def test_batch_sentiment_analysis():
@@ -131,6 +169,8 @@ def test_forms():
         
         app = Flask(__name__)
         app.config.from_object(Config)
+        app.config['SECRET_KEY'] = 'test-secret-key'
+        app.config['WTF_CSRF_ENABLED'] = False
         
         with app.test_request_context():
             form = EnhancedYouTubeURLForm()
@@ -150,66 +190,24 @@ def test_forms():
         assert False, f"Error testing forms: {e}"
 
 
-def test_integration():
-    """Test full integration of enhanced features."""
-    print("\n" + "="*60)
-    print("Testing Full Integration")
-    print("="*60)
-    
-    try:
-        # Initialize services
-        youtube_service = EnhancedYouTubeService()
-        sentiment_client = SentimentAPIClient(base_url="https://test.api.com")
-        sentiment_client.mock_mode = True  # Use mock mode for testing
-        
-        print("✓ Services initialized")
-        
-        # Test with a small video
-        test_video_id = "dQw4w9WgXcQ"
-        
-        # Fetch comments using enhanced service
-        print(f"\nFetching comments for video: {test_video_id}")
-        result = youtube_service.get_all_available_comments(
-            video_id=test_video_id,
-            target_comments=30,  # Small number for quick test
-            use_cache=False
-        )
-        
-        comments = result['comments']
-        print(f"✓ Fetched {len(comments)} comments")
-        
-        # Extract text for sentiment analysis
-        comment_texts = [c['text'] for c in comments[:20]]  # Analyze first 20
-        
-        # Perform sentiment analysis
-        print(f"\nAnalyzing sentiment for {len(comment_texts)} comments...")
-        sentiment_results = sentiment_client.analyze_batch(comment_texts)
-        
-        print(f"✓ Sentiment analysis completed")
-        print(f"  Total analyzed: {sentiment_results['total_analyzed']}")
-        
-        # Calculate overall sentiment from results
-        sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
-        for result in sentiment_results['results']:
-            sentiment = result.get('sentiment', 'neutral')
-            sentiment_counts[sentiment] += 1
-        
-        # Determine overall sentiment
-        max_sentiment = max(sentiment_counts, key=sentiment_counts.get)
-        print(f"  Overall sentiment: {max_sentiment}")
-        print(f"  Distribution: Positive={sentiment_counts['positive']}, Neutral={sentiment_counts['neutral']}, Negative={sentiment_counts['negative']}")
-        
-        # Verify the integration worked
-        assert len(comments) > 0, "No comments fetched"
-        assert sentiment_results['total_analyzed'] > 0, "No comments analyzed"
-        
-        print("\n✓ Full integration test passed!")
-        
-    except Exception as e:
-        print(f"✗ Integration test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        assert False, f"Integration test failed: {e}"
+def test_integration(monkeypatch):
+    """Test full integration of enhanced features without calling YouTube."""
+    monkeypatch.setenv('YOUTUBE_API_KEY', 'test-key')
+    monkeypatch.setenv('ENABLE_EXTERNAL_AI', 'true')
+    monkeypatch.setattr('app.services.youtube_service.build', lambda *args, **kwargs: _fake_youtube())
+    youtube_service = EnhancedYouTubeService(api_key='test-key')
+    sentiment_client = SentimentAPIClient(base_url='https://test.api.com')
+    sentiment_client.mock_mode = True
+    result = youtube_service.get_all_available_comments(
+        video_id='dQw4w9WgXcQ',
+        target_comments=30,
+        use_cache=False,
+    )
+    comments = result['comments']
+    comment_texts = [comment['text'] for comment in comments[:20]]
+    sentiment_results = sentiment_client.analyze_batch(comment_texts)
+    assert len(comments) > 0
+    assert sentiment_results['total_analyzed'] > 0
 
 
 def main():

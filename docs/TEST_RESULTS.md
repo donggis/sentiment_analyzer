@@ -31,3 +31,11 @@
 명령: .venv/Scripts/python.exe -m pytest tests/test_private_security.py tests/test_private_egress.py --disable-socket -q
 결과: 31 passed, 2 warnings in 22.16s.
 검증 범위: 운영 키, 기존 결제/메일/OAuth 차단, 외부 AI opt-in 부재 시 HTTP 미호출, 기존 Basic Auth 접근 제어. 관리자 세션/CSRF/클러스터링/배포 검증은 포함하지 않음.
+
+## 2026-11-14 관리자 세션과 수집 이후
+명령: `.venv/bin/python -m pytest -q`
+결과: 196 passed, 17 skipped, 6 warnings, 약 20초. Python 3.12.3.
+건너뛴 항목: 브라우저가 필요한 Playwright e2e, 서버가 꺼져 있어 건너뛴 캐시 시연, Redis Cloud 주소가 없을 때의 연결 테스트, integration으로 표시된 API 테스트 1건.
+포함: 로그인, CSRF 없는 POST 거부, 비밀번호 5회 실패 후 429, 로그인 없이 API와 CSV 401, 결제/문의/기존 OAuth 404, 유료 AI 기본 미호출, 가짜 YouTube API로 페이지 나누기/이어받기/중복 없음/답글/주제 묶음, SQLite 파일을 새 앱에서 다시 열어도 댓글 유지.
+배포와 Fly 자원 생성은 하지 않았습니다.
+

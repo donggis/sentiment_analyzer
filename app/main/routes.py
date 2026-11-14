@@ -312,79 +312,8 @@ def terms():
 
 @bp.route('/contact', methods=['GET', 'POST'])
 def contact():
-    """Contact page with form."""
-    form = ContactForm()
-    
-    if form.validate_on_submit():
-        # Get form data
-        name = form.name.data
-        email = form.email.data
-        message = form.message.data
-        
-        # Send email notification
-        try:
-            from app.email import send_email
-            import logging
-            from flask import current_app
-            
-            # Prepare email content
-            subject = f'VibeCheckAI Contact Form: Message from {name}'
-            
-            # HTML body
-            html_body = f"""
-            <h2>New Contact Form Submission</h2>
-            <p><strong>From:</strong> {name}</p>
-            <p><strong>Email:</strong> <a href="mailto:{email}">{email}</a></p>
-            <p><strong>Message:</strong></p>
-            <div style="padding: 15px; background-color: #f5f5f5; border-left: 4px solid #667eea; margin: 10px 0;">
-                {message.replace(chr(10), '<br>')}
-            </div>
-            <hr>
-            <p style="color: #666; font-size: 12px;">This message was sent via the VibeCheckAI contact form.</p>
-            """
-            
-            # Plain text body
-            text_body = f"""
-            New Contact Form Submission
-            
-            From: {name}
-            Email: {email}
-            
-            Message:
-            {message}
-            
-            ---
-            This message was sent via the VibeCheckAI contact form.
-            """
-            
-            # Send email to theresasumma@gmail.com
-            sender = current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@vibecheckai.com')
-            email_sent = send_email(
-                subject=subject,
-                sender=sender,
-                recipients=['theresasumma@gmail.com'],
-                text_body=text_body,
-                html_body=html_body,
-                async_send=True
-            )
-            
-            if email_sent:
-                logging.info(f"Contact form email sent for submission from {name} ({email})")
-            else:
-                logging.warning(f"Failed to send contact form email for submission from {name} ({email})")
-        
-        except Exception as e:
-            # Log error but don't break the user experience
-            import logging
-            logging.error(f"Error sending contact form email: {str(e)}")
-        
-        # Always show success message to user (email errors shouldn't affect UX)
-        flash('Thank you for your message! We will get back to you as soon as possible, often within 24 hours.', 'success')
-        
-        # Redirect to prevent form resubmission
-        return redirect(url_for('main.contact'))
-    
-    return render_template('contact.html', form=form)
+    """Contact mail is disabled. The address of the original app owner is not used."""
+    return 'Feature disabled for private deployment', 404
 
 
 @bp.route('/api/health')

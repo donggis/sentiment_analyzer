@@ -74,6 +74,8 @@ class Config:
     
     # Rate limiting settings (for future implementation)
     RATELIMIT_STORAGE_URL = os.environ.get('REDIS_URL') or 'memory://'
+    LOGIN_FAIL_LIMIT = int(os.environ.get('LOGIN_FAIL_LIMIT', 5))
+    LOGIN_FAIL_WINDOW_SECONDS = int(os.environ.get('LOGIN_FAIL_WINDOW_SECONDS', 900))
     
     # Application settings - Tiered comment limits
     MAX_COMMENTS_ANONYMOUS = int(os.environ.get('MAX_COMMENTS_ANONYMOUS', 2500))  # Free tier - anonymous users
@@ -122,6 +124,7 @@ class TestingConfig(Config):
     """Testing configuration."""
     TESTING = True
     WTF_CSRF_ENABLED = False
+    SESSION_COOKIE_SECURE = False
 
 
 config_dict = {

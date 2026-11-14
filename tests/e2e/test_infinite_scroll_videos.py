@@ -7,6 +7,7 @@ import pytest
 import json
 import time
 import re
+pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import Page, expect
 
 pytestmark = pytest.mark.e2e

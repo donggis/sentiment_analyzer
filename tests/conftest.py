@@ -10,19 +10,30 @@ from unittest.mock import Mock, MagicMock, patch
 import redis
 import fakeredis
 
+from sqlalchemy.pool import StaticPool
+
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import create_app, db
 from app.models import User, Channel, Video, UserChannel, SentimentFeedback, AnalysisJob
 from app.config import Config
+from werkzeug.security import generate_password_hash
+
+TEST_ADMIN_PASSWORD = 'test-password'
+TEST_ADMIN_HASH = generate_password_hash(TEST_ADMIN_PASSWORD)
 
 
 class TestConfig(Config):
     """Test configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_DATABASE_URI = 'sqlite://'
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {'check_same_thread': False},
+        'poolclass': StaticPool,
+    }
     WTF_CSRF_ENABLED = False
+    SESSION_COOKIE_SECURE = False
     SECRET_KEY = 'test-secret-key'
     MAIL_SUPPRESS_SEND = True
     REDIS_URL = 'redis://localhost:6379/1'
@@ -33,15 +44,31 @@ class TestConfig(Config):
 
 
 @pytest.fixture(scope='function')
-def app():
+def app(monkeypatch):
     """Create application for testing."""
-    app = create_app(TestConfig)
+    monkeypatch.setenv('ADMIN_USERNAME', 'admin')
+    monkeypatch.setenv('ADMIN_PASSWORD_HASH', TEST_ADMIN_HASH)
+    monkeypatch.setenv('YOUTUBE_API_KEY', 'test-api-key')
+    monkeypatch.delenv('ADMIN_PASSWORD', raising=False)
+    monkeypatch.delenv('ENABLE_EXTERNAL_AI', raising=False)
+    application = create_app(TestConfig)
 
-    with app.app_context():
+    with application.app_context():
         db.create_all()
-        yield app
+        yield application
         db.session.remove()
         db.drop_all()
+
+
+def login_admin(client, password=TEST_ADMIN_PASSWORD):
+    """Open a real admin session. Tests that need the library call this."""
+    response = client.post('/login', data={
+        'username': 'admin',
+        'password': password,
+        'next': '/admin',
+    })
+    assert response.status_code in (302, 303), response.status_code
+    return client
 
 
 @pytest.fixture(scope='function')
@@ -60,8 +87,7 @@ def runner(app):
 def authenticated_client(client, test_user):
     """Create an authenticated test client."""
     with client:
-        # For OAuth-based auth, we need to simulate login differently
-        # We'll use Flask-Login's test utilities
+        login_admin(client)
         with client.session_transaction() as sess:
             sess['_user_id'] = str(test_user.id)
             sess['_fresh'] = True
@@ -111,6 +137,7 @@ def auth_client(client, app):
         db.session.add(user)
         db.session.commit()
 
+        login_admin(client)
         with client.session_transaction() as sess:
             sess['_user_id'] = str(user.id)
             sess['_fresh'] = True
@@ -132,6 +159,7 @@ def pro_client(client, app):
         db.session.add(user)
         db.session.commit()
 
+        login_admin(client)
         with client.session_transaction() as sess:
             sess['_user_id'] = str(user.id)
             sess['_fresh'] = True

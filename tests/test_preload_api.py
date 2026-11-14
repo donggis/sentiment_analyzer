@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from flask_login import login_user
 from app.models import db, User, AnalysisJob, Video, Channel
 from app import cache
+from conftest import login_admin
 
 
 class TestPreloadAPI:
@@ -18,12 +19,7 @@ class TestPreloadAPI:
     def test_preload_comments_requires_auth(self, client):
         """Test that preload endpoint requires authentication."""
         response = client.post('/api/preload/comments/test_video_id')
-        # Unauthenticated requests get redirected (302) to login
-        assert response.status_code in [302, 401]
-        if response.status_code == 401:
-            data = json.loads(response.data)
-            assert not data['success']
-            assert 'Authentication required' in data['error']
+        assert response.status_code == 401
 
     def test_preload_comments_requires_pro(self, client, test_user, app):
         """Test that preload endpoint requires PRO subscription."""
@@ -34,6 +30,7 @@ class TestPreloadAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -55,6 +52,7 @@ class TestPreloadAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -101,6 +99,7 @@ class TestPreloadAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -123,6 +122,7 @@ class TestPreloadAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -146,6 +146,7 @@ class TestPreloadAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -173,10 +174,7 @@ class TestJobsStatusAPI:
     def test_jobs_status_requires_auth(self, client):
         """Test that jobs status endpoint requires authentication."""
         response = client.get('/api/jobs/status')
-        assert response.status_code in [302, 401]
-        if response.status_code == 401:
-            data = json.loads(response.data)
-            assert not data['success']
+        assert response.status_code == 401
 
     def test_jobs_status_requires_pro(self, client, test_user, app):
         """Test that jobs status endpoint requires PRO subscription."""
@@ -187,6 +185,7 @@ class TestJobsStatusAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -229,6 +228,7 @@ class TestJobsStatusAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -292,6 +292,7 @@ class TestJobsStatusAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -331,6 +332,7 @@ class TestJobCancellationAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True
@@ -362,6 +364,7 @@ class TestJobCancellationAPI:
                 with patch('app.cache.cache.set') as mock_set:
                     # Login the user
                     with client:
+                        login_admin(client)
                         with client.session_transaction() as sess:
                             sess['_user_id'] = str(test_user.id)
                             sess['_fresh'] = True
@@ -392,6 +395,7 @@ class TestJobCancellationAPI:
             with patch('app.cache.cache.enabled', True):
               # Login the user
               with client:
+                  login_admin(client)
                   with client.session_transaction() as sess:
                       sess['_user_id'] = str(test_user.id)
                       sess['_fresh'] = True
@@ -424,6 +428,7 @@ class TestJobCancellationAPI:
                 
                 # Login the user
                 with client:
+                    login_admin(client)
                     with client.session_transaction() as sess:
                         sess['_user_id'] = str(test_user.id)
                         sess['_fresh'] = True
@@ -475,6 +480,7 @@ class TestClearOldJobsAPI:
                 with patch('app.cache.cache.delete') as mock_delete:
                     # Login the user
                     with client:
+                        login_admin(client)
                         with client.session_transaction() as sess:
                             sess['_user_id'] = str(test_user.id)
                             sess['_fresh'] = True
@@ -500,6 +506,7 @@ class TestClearOldJobsAPI:
             
             # Login the user
             with client:
+                login_admin(client)
                 with client.session_transaction() as sess:
                     sess['_user_id'] = str(test_user.id)
                     sess['_fresh'] = True

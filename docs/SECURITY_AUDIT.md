@@ -1,4 +1,6 @@
-# Phase A 보안 감사 — 진행 중
+# Phase A 보안 감사 — 2026-11-14 갱신
+
+아래 표는 2026-11-13에 찾은 항목입니다. 표 아래 날짜별 기록과 맨 끝 절이 그 이후 조치입니다. 최신 상태는 맨 끝의 "관리자 세션과 수집" 절입니다.
 
 기준: 2026-11-13, donggis/sentiment_analyzer, 50381eafe5a3bf2988c5857137b925f43a50e33b.
 작업 브랜치: feat/t3-private-youtube-dashboard. 원본 변경 없음. main 대비 보안 브랜치 변경: 7개 파일, +115/-6.
@@ -49,3 +51,12 @@ Fly 기존 앱 sentiment-analyzer-ywuuhq: 머신/볼륨/Secrets 없음. 리소�
 - /auth/ 이하 기존 OAuth/회원/결제 경로 차단. 신규 관리자 세션 구현 전에는 기존 Google 로그인도 사용 불가.
 - 새 발견: migrations/versions/a140228fb140_make_theresa_pro_user.py가 특정 원본 개발자 이메일의 구독 권한을 변경한다. 신규 개인용 배포 migration 설계에서 제거 필요. 현재 실행하지 않음.
 - 실제 회귀 테스트: 31 passed, 2 warnings, 22.16s. --disable-socket으로 외부 네트워크 차단.
+
+## 2026-11-14 관리자 세션과 수집
+- Git 이력 비밀 스캔: API 키 형식(AIza), AWS 키, 개인키, Stripe 라이브 키, GitHub 토큰은 추가된 줄에서 찾지 못했습니다. 문서와 예제에 있는 데이터베이스 주소는 `password` 같은 자리표시자입니다. 실제 비밀 값은 이 문서에 적지 않습니다.
+- 원본 개발자 계정에 구독 권한을 주던 마이그레이션 `a140228fb140`을 삭제했습니다. 다음 리비전이 그 앞 리비전을 가리키게 고쳤습니다. 이력 커밋에는 남아 있으므로 히스토리를 다시 쓰지 않았습니다. `run_migration.py`도 더 이상 그 계정을 바꾸지 않습니다. 문의 메일의 고정 수신 주소도 제거했습니다. 개인정보/약관 템플릿에는 예전 연락 메일이 아직 있습니다. 그 화면은 관리자 로그인 뒤에만 열립니다.
+- 임시 Basic Auth를 제거했습니다. 관리자는 `ADMIN_USERNAME`과 `ADMIN_PASSWORD_HASH`(Werkzeug 해시)로 로그인합니다. 세션 번호만 쿠키에 있고, 원문은 데이터베이스 해시로만 확인합니다. 쿠키는 HttpOnly, SameSite=Lax, 운영에서는 Secure입니다. 잘못된 비밀번호는 15분에 5번이면 429입니다. 실패 기록은 데이터베이스에 있어 워커가 여러 개여도 같이 셉니다. POST에는 Flask-WTF CSRF가 필요합니다. `next`는 사이트 안 경로만 허용합니다.
+- 유료 외부 AI는 `ENABLE_EXTERNAL_AI=true`가 없으면 호출하지 않습니다. 주제 묶음은 기본으로 이 서버 안의 단어 묶음입니다.
+- 라이선스: README가 MIT라고 적혀 있었고 저장소 이력에는 LICENSE 파일이 없었습니다. README와 같게 MIT LICENSE 파일을 추가했습니다. 의존성 중 psycopg, psycopg-binary, psycopg2-binary는 LGPL입니다. 앱은 이 라이브러리를 가져다 쓰는 형태입니다. numpy 메타데이터의 License 칸에 GPL 단어가 보이지만 분류와 본문은 BSD 계열입니다. 배포 권한을 이 검사만으로 확정하지 않습니다.
+- Fly 리소스는 만들지 않았고, 시크릿을 바꾸거나 배포하지 않았습니다.
+
